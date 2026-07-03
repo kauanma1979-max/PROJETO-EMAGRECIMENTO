@@ -10,6 +10,8 @@ export interface Registro {
   peso: number;
   fome: number; // 0-10
   obs: string;
+  foto?: string; // Base64 encoded string of user uploaded photo
+  fotos?: string[]; // Array of Base64 encoded strings
 }
 
 export interface AppData {
