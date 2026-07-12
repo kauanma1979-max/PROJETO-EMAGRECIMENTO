@@ -1,5 +1,5 @@
-import { useState, FormEvent } from "react";
-import { Pill, Plus, Trash2, Edit2, DollarSign, Store, Phone, FileText, Tag, Calendar, X, Check } from "lucide-react";
+import { useState, FormEvent, ChangeEvent } from "react";
+import { Pill, Plus, Trash2, Edit2, DollarSign, Store, Phone, FileText, Tag, Calendar, X, Check, Image as ImageIcon, Loader2 } from "lucide-react";
 import { MedicamentoItem } from "../types";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -10,6 +10,47 @@ interface MedicamentosCardProps {
   onDeleteMedicamento: (id: string) => void;
 }
 
+const compressImage = (file: File, maxWidth = 800, maxHeight = 800): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target?.result as string;
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > maxWidth) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          }
+        } else {
+          if (height > maxHeight) {
+            width = Math.round((width * maxHeight) / height);
+            height = maxHeight;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          const dataUrl = canvas.toDataURL("image/jpeg", 0.7);
+          resolve(dataUrl);
+        } else {
+          resolve(event.target?.result as string);
+        }
+      };
+      img.onerror = (err) => reject(err);
+    };
+    reader.onerror = (err) => reject(err);
+  });
+};
+
 export default function MedicamentosCard({
   medicamentos = [],
   onAddMedicamento,
@@ -18,6 +59,8 @@ export default function MedicamentosCard({
 }: MedicamentosCardProps) {
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
+  const [lightboxTitle, setLightboxTitle] = useState<string | null>(null);
 
   // Form states
   const [nome, setNome] = useState("");
@@ -29,6 +72,8 @@ export default function MedicamentosCard({
   const [mg, setMg] = useState("");
   const [obs, setObs] = useState("");
   const [dataCompra, setDataCompra] = useState(new Date().toISOString().slice(0, 10));
+  const [imagem, setImagem] = useState<string>("");
+  const [isCompressing, setIsCompressing] = useState(false);
 
   const resetForm = () => {
     setNome("");
@@ -40,6 +85,7 @@ export default function MedicamentosCard({
     setMg("");
     setObs("");
     setDataCompra(new Date().toISOString().slice(0, 10));
+    setImagem("");
     setEditingId(null);
   };
 
@@ -59,7 +105,28 @@ export default function MedicamentosCard({
     setMg(item.mg);
     setObs(item.obs);
     setDataCompra(item.dataCompra || new Date().toISOString().slice(0, 10));
+    setImagem(item.imagem || "");
     setShowModal(true);
+  };
+
+  const handleImageChange = async (e: ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      if (!file.type.startsWith("image/")) {
+        alert("Por favor, selecione um arquivo de imagem válido.");
+        return;
+      }
+      try {
+        setIsCompressing(true);
+        const compressed = await compressImage(file);
+        setImagem(compressed);
+      } catch (err) {
+        console.error("Erro ao comprimir imagem:", err);
+        alert("Erro ao carregar imagem.");
+      } finally {
+        setIsCompressing(false);
+      }
+    }
   };
 
   const handleSubmit = (e: FormEvent) => {
@@ -79,6 +146,7 @@ export default function MedicamentosCard({
       mg: mg.trim(),
       obs: obs.trim(),
       dataCompra,
+      imagem: imagem || undefined,
     };
 
     if (editingId) {
@@ -284,6 +352,23 @@ export default function MedicamentosCard({
                         </div>
                       )}
                     </div>
+
+                    {/* Display image below data if present */}
+                    {item.imagem && (
+                      <div className="pt-2 border-t border-slate-100">
+                        <img 
+                          src={item.imagem} 
+                          alt={item.nome}
+                          onClick={() => {
+                            setLightboxImage(item.imagem || null);
+                            setLightboxTitle(item.nome);
+                          }}
+                          className="w-full h-48 object-cover rounded-2xl border border-slate-200 shadow-sm cursor-pointer hover:opacity-95 transition-all hover:scale-[1.01]"
+                          referrerPolicy="no-referrer"
+                          title="Clique para ampliar a foto"
+                        />
+                      </div>
+                    )}
                   </div>
                 </motion.div>
               );
@@ -291,6 +376,49 @@ export default function MedicamentosCard({
           </div>
         )}
       </div>
+
+      {/* Lightbox / Image Zoom Modal */}
+      <AnimatePresence>
+        {lightboxImage && (
+          <div 
+            className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 cursor-pointer"
+            onClick={() => setLightboxImage(null)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-3xl max-w-4xl w-full max-h-[90vh] overflow-hidden shadow-2xl flex flex-col cursor-default"
+            >
+              <div className="bg-slate-900 text-white p-4 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <ImageIcon className="w-5 h-5 text-indigo-400" />
+                  <span className="font-black text-sm uppercase tracking-wide">
+                    {lightboxTitle || "Visualização da Foto"}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setLightboxImage(null)}
+                  className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-all cursor-pointer text-white"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-4 md:p-8 bg-slate-950 flex items-center justify-center overflow-auto max-h-[calc(90vh-70px)]">
+                <img
+                  src={lightboxImage}
+                  alt={lightboxTitle || "Foto original"}
+                  className="w-auto h-auto max-w-none max-h-none rounded-xl shadow-2xl border border-slate-700 block mx-auto"
+                  referrerPolicy="no-referrer"
+                />
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Modal for Add / Edit */}
       <AnimatePresence>
@@ -329,7 +457,7 @@ export default function MedicamentosCard({
                       Nome do Medicamento *
                     </label>
                     <input
-                      type="string"
+                      type="text"
                       required
                       placeholder="Ex: Tirzepatida / Mounjaro"
                       value={nome}
@@ -448,6 +576,58 @@ export default function MedicamentosCard({
                   ></textarea>
                 </div>
 
+                {/* Image Upload Field */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                    Foto do Medicamento / Comprovante
+                  </label>
+                  <div className="flex flex-col gap-3">
+                    <label className="border-2 border-dashed border-slate-200 hover:border-indigo-500 rounded-2xl p-4 text-center cursor-pointer bg-slate-50 hover:bg-indigo-50/20 transition-all flex items-center justify-center gap-2">
+                      {isCompressing ? (
+                        <>
+                          <Loader2 className="w-5 h-5 animate-spin text-indigo-600" />
+                          <span className="text-xs font-semibold text-slate-600">Processando imagem...</span>
+                        </>
+                      ) : (
+                        <>
+                          <ImageIcon className="w-5 h-5 text-indigo-600" />
+                          <span className="text-xs font-semibold text-slate-700">Clique para enviar imagem do computador</span>
+                        </>
+                      )}
+                      <input 
+                        type="file" 
+                        accept="image/*" 
+                        onChange={handleImageChange} 
+                        className="hidden" 
+                      />
+                    </label>
+
+                    {imagem && (
+                      <div className="relative inline-block w-full">
+                        <img 
+                          src={imagem} 
+                          alt="Preview" 
+                          onClick={() => {
+                            setLightboxImage(imagem);
+                            setLightboxTitle(nome || "Pré-visualização");
+                          }}
+                          className="w-full h-36 object-cover rounded-2xl border border-slate-200 shadow-sm cursor-pointer hover:opacity-95"
+                          referrerPolicy="no-referrer"
+                          title="Clique para ampliar"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setImagem("")}
+                          className="absolute top-2 right-2 w-7 h-7 rounded-full bg-rose-600 text-white flex items-center justify-center shadow-md hover:bg-rose-700 cursor-pointer"
+                          title="Remover imagem"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
                 {/* Modal Footer */}
                 <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-3">
                   <button
@@ -473,3 +653,4 @@ export default function MedicamentosCard({
     </div>
   );
 }
+

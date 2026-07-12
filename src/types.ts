@@ -25,6 +25,7 @@ export interface MedicamentoItem {
   mg: string;
   obs: string;
   dataCompra?: string;
+  imagem?: string;
 }
 
 export interface AppData {
