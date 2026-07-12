@@ -14,7 +14,22 @@ export interface Registro {
   fotos?: string[]; // Array of Base64 encoded strings
 }
 
+export interface MedicamentoItem {
+  id: string;
+  nome: string;
+  marca: string;
+  valor: number;
+  frete: number;
+  ondeComprou: string;
+  contato: string;
+  mg: string;
+  obs: string;
+  dataCompra?: string;
+}
+
 export interface AppData {
   config: AppConfig;
   registros: Registro[];
+  medicamentos?: MedicamentoItem[];
 }
+

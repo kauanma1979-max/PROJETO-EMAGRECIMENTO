@@ -12,7 +12,8 @@ import {
   Download,
   Upload,
   Database,
-  Syringe
+  Syringe,
+  Pill
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import ConfigPerfil from "./components/ConfigPerfil";
@@ -21,7 +22,8 @@ import GraficosDashboard from "./components/GraficosDashboard";
 import RegistroForm from "./components/RegistroForm";
 import HistoricoTabela from "./components/HistoricoTabela";
 import RastreadorInjecaoCard from "./components/RastreadorInjecaoCard";
-import { AppData, AppConfig, Registro } from "./types";
+import MedicamentosCard from "./components/MedicamentosCard";
+import { AppData, AppConfig, Registro, MedicamentoItem } from "./types";
 
 export default function App() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -41,6 +43,7 @@ export default function App() {
             dataInicio: parsed.config?.dataInicio ?? "",
           },
           registros: Array.isArray(parsed.registros) ? parsed.registros : [],
+          medicamentos: Array.isArray(parsed.medicamentos) ? parsed.medicamentos : [],
         };
       } catch (e) {
         console.error("Erro ao carregar dados salvos:", e);
@@ -49,6 +52,7 @@ export default function App() {
     return {
       config: { pesoInicial: 80, metaPerda: 10, dataInicio: "2026-06-01" },
       registros: [],
+      medicamentos: [],
     };
   });
 
@@ -86,10 +90,12 @@ export default function App() {
             const metaPerda = parseFloat(parsed.config?.metaPerda) || 0;
             const dataInicio = parsed.config?.dataInicio || "";
             const registros = Array.isArray(parsed.registros) ? parsed.registros : [];
+            const medicamentos = Array.isArray(parsed.medicamentos) ? parsed.medicamentos : [];
             
             setAppData({
               config: { pesoInicial, metaPerda, dataInicio },
-              registros
+              registros,
+              medicamentos
             });
             alert("✅ Backup restaurado com sucesso!");
           } else {
@@ -131,6 +137,32 @@ export default function App() {
     setAppData((prev) => ({
       ...prev,
       registros: prev.registros.filter((reg) => reg.id !== id),
+    }));
+  };
+
+  // Handlers for Medicamentos
+  const handleAddMedicamento = (novoMed: Omit<MedicamentoItem, "id">) => {
+    const medWithId: MedicamentoItem = {
+      ...novoMed,
+      id: Date.now().toString(),
+    };
+    setAppData((prev) => ({
+      ...prev,
+      medicamentos: [...(prev.medicamentos || []), medWithId],
+    }));
+  };
+
+  const handleUpdateMedicamento = (updatedMed: MedicamentoItem) => {
+    setAppData((prev) => ({
+      ...prev,
+      medicamentos: (prev.medicamentos || []).map((m) => (m.id === updatedMed.id ? updatedMed : m)),
+    }));
+  };
+
+  const handleDeleteMedicamento = (id: string) => {
+    setAppData((prev) => ({
+      ...prev,
+      medicamentos: (prev.medicamentos || []).filter((m) => m.id !== id),
     }));
   };
 
@@ -187,6 +219,18 @@ export default function App() {
         >
           <Syringe className="w-4 h-4" />
           <span>Rastreador Subcutâneo</span>
+        </button>
+
+        <button
+          onClick={() => { setActiveTab("medicamentos"); setMobileMenuOpen(false); }}
+          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 cursor-pointer ${
+            activeTab === "medicamentos"
+              ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/10"
+              : "text-slate-400 hover:text-slate-200 hover:bg-slate-800"
+          }`}
+        >
+          <Pill className="w-4 h-4" />
+          <span>Gerenciar Medicamentos</span>
         </button>
 
         <button
@@ -335,10 +379,10 @@ export default function App() {
           <div className="flex items-center gap-3">
             <button 
               onClick={() => {
+                setActiveTab("dashboard");
                 const element = document.getElementById("registro-form-card");
                 if (element) {
                   element.scrollIntoView({ behavior: "smooth", block: "center" });
-                  // highlight effect animation
                   element.classList.add("ring-2", "ring-indigo-500");
                   setTimeout(() => {
                     element.classList.remove("ring-2", "ring-indigo-500");
@@ -462,6 +506,19 @@ export default function App() {
               >
                 <RastreadorInjecaoCard />
               </motion.div>
+            ) : activeTab === "medicamentos" ? (
+              <motion.div 
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                className="space-y-6"
+              >
+                <MedicamentosCard
+                  medicamentos={appData.medicamentos || []}
+                  onAddMedicamento={handleAddMedicamento}
+                  onUpdateMedicamento={handleUpdateMedicamento}
+                  onDeleteMedicamento={handleDeleteMedicamento}
+                />
+              </motion.div>
             ) : (
               <motion.div
                 initial={{ opacity: 0 }}
@@ -498,3 +555,4 @@ export default function App() {
     </div>
   );
 }
+
