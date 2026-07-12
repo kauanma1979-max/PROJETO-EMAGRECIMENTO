@@ -11,7 +11,8 @@ import {
   Dumbbell,
   Download,
   Upload,
-  Database
+  Database,
+  Syringe
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import ConfigPerfil from "./components/ConfigPerfil";
@@ -19,6 +20,7 @@ import DashboardStatus from "./components/DashboardStatus";
 import GraficosDashboard from "./components/GraficosDashboard";
 import RegistroForm from "./components/RegistroForm";
 import HistoricoTabela from "./components/HistoricoTabela";
+import RastreadorInjecaoCard from "./components/RastreadorInjecaoCard";
 import { AppData, AppConfig, Registro } from "./types";
 
 export default function App() {
@@ -173,6 +175,18 @@ export default function App() {
         >
           <LayoutDashboard className="w-4 h-4" />
           <span>Dashboard Principal</span>
+        </button>
+
+        <button
+          onClick={() => { setActiveTab("injecoes"); setMobileMenuOpen(false); }}
+          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 cursor-pointer ${
+            activeTab === "injecoes"
+              ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/10"
+              : "text-slate-400 hover:text-slate-200 hover:bg-slate-800"
+          }`}
+        >
+          <Syringe className="w-4 h-4" />
+          <span>Rastreador Subcutâneo</span>
         </button>
 
         <button
@@ -439,6 +453,14 @@ export default function App() {
                     Voltar ao Dashboard
                   </button>
                 </div>
+              </motion.div>
+            ) : activeTab === "injecoes" ? (
+              <motion.div 
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                className="space-y-6"
+              >
+                <RastreadorInjecaoCard />
               </motion.div>
             ) : (
               <motion.div
