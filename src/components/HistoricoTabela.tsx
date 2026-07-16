@@ -1,4 +1,4 @@
-import { useState, useMemo, MouseEvent } from "react";
+import { useState, useMemo, MouseEvent, ChangeEvent, FormEvent } from "react";
 import { 
   History, 
   Trash2, 
@@ -10,7 +10,9 @@ import {
   FileText, 
   ChevronLeft, 
   ChevronRight,
-  ImageIcon
+  ImageIcon,
+  Edit2,
+  Loader2
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { Registro } from "../types";
@@ -18,14 +20,124 @@ import { Registro } from "../types";
 interface HistoricoTabelaProps {
   registros: Registro[];
   onDeleteRegistro: (id: string) => void;
+  onUpdateRegistro: (registro: Registro) => void;
 }
 
 export default function HistoricoTabela({
   registros,
   onDeleteRegistro,
+  onUpdateRegistro,
 }: HistoricoTabelaProps) {
   const [activeReg, setActiveReg] = useState<Registro | null>(null);
   const [currentPhotoIdx, setCurrentPhotoIdx] = useState(0);
+
+  // States for editing a record
+  const [editingReg, setEditingReg] = useState<Registro | null>(null);
+  const [editData, setEditData] = useState("");
+  const [editPeso, setEditPeso] = useState("");
+  const [editFome, setEditFome] = useState(5);
+  const [editObs, setEditObs] = useState("");
+  const [editFotos, setEditFotos] = useState<string[]>([]);
+  const [isCompressingEdit, setIsCompressingEdit] = useState(false);
+
+  // Client-side image compression helper
+  const compressImage = (file: File, maxWidth = 800, maxHeight = 800): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target?.result as string;
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > maxWidth) {
+              height = Math.round((height * maxWidth) / width);
+              width = maxWidth;
+            }
+          } else {
+            if (height > maxHeight) {
+              width = Math.round((width * maxHeight) / height);
+              height = maxHeight;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, width, height);
+            const dataUrl = canvas.toDataURL("image/jpeg", 0.7);
+            resolve(dataUrl);
+          } else {
+            resolve(event.target?.result as string);
+          }
+        };
+        img.onerror = (err) => reject(err);
+      };
+      reader.onerror = (err) => reject(err);
+    });
+  };
+
+  const handleOpenEdit = (reg: Registro) => {
+    setEditingReg(reg);
+    setEditData(reg.data);
+    setEditPeso(reg.peso.toString());
+    setEditFome(reg.fome);
+    setEditObs(reg.obs || "");
+    const initialFotos = reg.fotos && reg.fotos.length > 0
+      ? [...reg.fotos]
+      : (reg.foto ? [reg.foto] : []);
+    setEditFotos(initialFotos);
+  };
+
+  const handleEditFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      const filesArray = Array.from(e.target.files) as File[];
+      const validFiles = filesArray.filter(file => file.type.startsWith("image/"));
+      if (validFiles.length === 0) return;
+
+      try {
+        setIsCompressingEdit(true);
+        const compressedUrls: string[] = [];
+        for (const file of validFiles) {
+          const compressed = await compressImage(file);
+          compressedUrls.push(compressed);
+        }
+        setEditFotos((prev) => [...prev, ...compressedUrls]);
+      } catch (err) {
+        console.error("Erro ao processar imagem(ns):", err);
+        alert("Houve um erro ao carregar algumas fotos.");
+      } finally {
+        setIsCompressingEdit(false);
+      }
+    }
+  };
+
+  const handleRemoveEditFoto = (idxToRemove: number) => {
+    setEditFotos((prev) => prev.filter((_, idx) => idx !== idxToRemove));
+  };
+
+  const handleSaveEdit = (e: FormEvent) => {
+    e.preventDefault();
+    if (!editingReg || !editData || !editPeso) return;
+
+    const updatedReg: Registro = {
+      ...editingReg,
+      data: editData,
+      peso: parseFloat(editPeso),
+      fome: editFome,
+      obs: editObs,
+      foto: editFotos[0] || undefined,
+      fotos: editFotos.length > 0 ? editFotos : undefined,
+    };
+
+    onUpdateRegistro(updatedReg);
+    setEditingReg(null);
+  };
 
   // Compute ordered and sorted list
   const sortedRegistros = useMemo(() => {
@@ -191,14 +303,25 @@ export default function HistoricoTabela({
                     >
                       {reg.obs || "---"}
                     </td>
-                    <td className="px-6 py-4 text-center">
-                      <button
-                        onClick={() => handleDelete(reg.id)}
-                        className="p-1 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-all cursor-pointer"
-                        title="Excluir Registro"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center justify-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEdit(reg)}
+                          className="p-1 rounded-md text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all cursor-pointer"
+                          title="Editar Registro"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(reg.id)}
+                          className="p-1 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-all cursor-pointer"
+                          title="Excluir Registro"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -385,6 +508,176 @@ export default function HistoricoTabela({
                   Fechar Visualização
                 </button>
               </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Edit Registration Modal */}
+      <AnimatePresence>
+        {editingReg && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            {/* Backdrop Overlay */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setEditingReg(null)}
+              className="absolute inset-0 bg-slate-950/60 backdrop-blur-xs"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-slate-200 z-10 overflow-hidden"
+            >
+              <div className="bg-slate-900 text-white p-4 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Edit2 className="w-4 h-4 text-indigo-400" />
+                  <span className="font-black text-xs uppercase tracking-widest">
+                    Editar Registro #{sortedRegistros.findIndex(r => r.id === editingReg.id) !== -1 ? sortedRegistros.find(r => r.id === editingReg.id)?.originalIndex : ""}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setEditingReg(null)}
+                  className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white cursor-pointer transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveEdit} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto custom-scrollbar">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
+                      Data
+                    </label>
+                    <input
+                      type="date"
+                      required
+                      value={editData}
+                      onChange={(e) => setEditData(e.target.value)}
+                      className="w-full rounded-lg border-slate-200 focus:border-indigo-500 focus:ring-indigo-500 p-2 border font-bold text-slate-700 outline-none transition-all text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
+                      Peso (kg)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      required
+                      placeholder="0.0"
+                      value={editPeso}
+                      onChange={(e) => setEditPeso(e.target.value)}
+                      className="w-full rounded-lg border-slate-200 focus:border-indigo-500 focus:ring-indigo-500 p-2 border font-bold text-slate-700 outline-none transition-all text-sm"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex justify-between items-center text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
+                    <span>Nível de Fome</span>
+                    <span className="text-indigo-600 font-extrabold">{editFome}/10</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="10"
+                    value={editFome}
+                    onChange={(e) => setEditFome(parseInt(e.target.value))}
+                    className="w-full accent-indigo-600 h-1.5 bg-slate-150 rounded-lg appearance-none cursor-pointer"
+                  />
+                  <div className="flex justify-between text-[9px] text-slate-400 font-semibold uppercase tracking-wider mt-1 px-1">
+                    <span>Sem fome (0)</span>
+                    <span>Moderada (5)</span>
+                    <span>Muita fome (10)</span>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
+                    Observações do Dia
+                  </label>
+                  <textarea
+                    placeholder="Como foi sua alimentação, atividades, ou sintomas hoje..."
+                    value={editObs}
+                    onChange={(e) => setEditObs(e.target.value)}
+                    rows={3}
+                    className="w-full rounded-lg border-slate-200 focus:border-indigo-500 focus:ring-indigo-500 p-2.5 border font-semibold text-xs text-slate-700 outline-none transition-all resize-none"
+                  />
+                </div>
+
+                {/* Photos Selector */}
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
+                    Fotos de Progresso (Direto do PC)
+                  </label>
+                  
+                  <div className="space-y-3">
+                    <label className="border-2 border-dashed border-slate-200 hover:border-indigo-500 rounded-xl p-4 text-center cursor-pointer bg-slate-50 hover:bg-indigo-50/20 transition-all flex items-center justify-center gap-2">
+                      {isCompressingEdit ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin text-indigo-600" />
+                          <span className="text-xs font-semibold text-slate-600">Comprimindo...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Camera className="w-4 h-4 text-indigo-500" />
+                          <span className="text-xs font-semibold text-slate-600">Adicionar fotos de progresso</span>
+                        </>
+                      )}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        onChange={handleEditFileChange}
+                        className="hidden"
+                      />
+                    </label>
+
+                    {editFotos.length > 0 && (
+                      <div className="grid grid-cols-4 gap-2 border border-slate-100 p-2 rounded-xl bg-slate-50">
+                        {editFotos.map((img, idx) => (
+                          <div key={idx} className="relative aspect-square rounded-lg overflow-hidden border border-slate-200 group">
+                            <img
+                              src={img}
+                              alt={`Progresso ${idx + 1}`}
+                              className="w-full h-full object-cover"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveEditFoto(idx)}
+                              className="absolute top-1 right-1 w-5 h-5 rounded-full bg-rose-600 hover:bg-rose-700 text-white flex items-center justify-center shadow transition-colors cursor-pointer"
+                              title="Remover foto"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setEditingReg(null)}
+                    className="px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-500 hover:bg-slate-50 rounded-lg cursor-pointer transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 text-xs font-bold uppercase tracking-wider text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-sm cursor-pointer transition-colors"
+                  >
+                    Salvar Alterações
+                  </button>
+                </div>
+              </form>
             </motion.div>
           </div>
         )}

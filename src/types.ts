@@ -2,6 +2,10 @@ export interface AppConfig {
   pesoInicial: number;
   metaPerda: number;
   dataInicio: string;
+  foto?: string; // Base64 profile photo
+  nome?: string; // Full Name
+  sexo?: string; // Sex
+  idade?: number; // Age
 }
 
 export interface Registro {

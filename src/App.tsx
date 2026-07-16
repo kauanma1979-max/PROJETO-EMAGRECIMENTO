@@ -140,6 +140,14 @@ export default function App() {
     }));
   };
 
+  // Handler to update a log entry
+  const handleUpdateRegistro = (updatedReg: Registro) => {
+    setAppData((prev) => ({
+      ...prev,
+      registros: prev.registros.map((reg) => (reg.id === updatedReg.id ? updatedReg : reg)),
+    }));
+  };
+
   // Handlers for Medicamentos
   const handleAddMedicamento = (novoMed: Omit<MedicamentoItem, "id">) => {
     const medWithId: MedicamentoItem = {
@@ -295,12 +303,23 @@ export default function App() {
       {/* Footer Profile Avatar */}
       <div className="p-4 border-t border-slate-800 bg-slate-950/40">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-full bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 flex items-center justify-center font-black text-sm">
-            UF
-          </div>
+          {appData.config.foto ? (
+            <img
+              src={appData.config.foto}
+              alt="Foto do perfil"
+              className="w-9 h-9 rounded-full object-cover border border-indigo-500/30 shrink-0"
+            />
+          ) : (
+            <div className="w-9 h-9 rounded-full bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 flex items-center justify-center font-black text-xs shrink-0 uppercase">
+              {appData.config.nome ? appData.config.nome.trim().split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase() : "UF"}
+            </div>
+          )}
           <div className="flex-1 overflow-hidden">
-            <p className="text-xs text-white font-semibold truncate">Usuário Focado</p>
-            <p className="text-[10px] text-slate-500 truncate">Jornada Saudável</p>
+            <p className="text-xs text-white font-semibold truncate">{appData.config.nome || "Usuário Focado"}</p>
+            <p className="text-[10px] text-slate-500 truncate">
+              {appData.config.idade ? `${appData.config.idade} anos` : "Jornada Saudável"}
+              {appData.config.sexo ? ` • ${appData.config.sexo}` : ""}
+            </p>
           </div>
         </div>
       </div>
@@ -545,6 +564,7 @@ export default function App() {
                   <HistoricoTabela
                     registros={filteredRegistros}
                     onDeleteRegistro={handleDeleteRegistro}
+                    onUpdateRegistro={handleUpdateRegistro}
                   />
                 </div>
               </motion.div>
